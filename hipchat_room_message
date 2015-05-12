@@ -29,6 +29,7 @@ OPTIONS:
    -t <token>     API token
    -r <room id>   Room ID
    -f <from name> From name
+   -F <filename>  File to upload
    -c <color>     Message color (yellow, red, green, purple or random - default: yellow)
    -m <format>    Message format (html or text - default: html)
    -i <input>     Optional: Input to send to room (default: stdin)
@@ -52,12 +53,13 @@ NOTIFY=${HIPCHAT_NOTIFY:-0}
 HOST=${HIPCHAT_HOST:-api.hipchat.com}
 LEVEL=${HIPCHAT_LEVEL:-}
 API=${HIPCHAT_API:-v1}
-while getopts “ht:r:f:c:m:o:i:l:v:n” OPTION; do
+while getopts “ht:r:f:F:c:m:o:i:l:v:n” OPTION; do
   case $OPTION in
     h) usage; exit 1;;
     t) TOKEN=$OPTARG;;
     r) ROOM_ID=$OPTARG;;
     f) FROM=$OPTARG;;
+    F) FILE=$OPTARG;;
     c) COLOR=$OPTARG;;
     m) FORMAT=$OPTARG;;
     n) NOTIFY=1;;
@@ -120,11 +122,25 @@ if [ $API == 'v2' ]; then
 fi
 
 # do the curl
-if [ $API == 'v2' ]; then
-  curl -sS \
-    -H 'Content-type: application/json' \
-    -d "{\"color\":\"$COLOR\", \"message\":\"$INPUT\", \"message_format\":\"$FORMAT\", \"notify\":$NOTIFY}" \
-    https://$HOST/v2/room/$ROOM_ID/notification?auth_token=$TOKEN
+if [[ $API == 'v2' || -n $FILE ]]; then
+  if [[ -n $FILE ]]; then
+    echo "Trying to send ${FILE}"
+    curl -sS \
+      -H 'Content-type: application/json' \
+      -d "{\"color\":\"$COLOR\", \"message\":\"$INPUT\", \"message_format\":\"$FORMAT\"}" \
+      https://$HOST/v2/room/$ROOM_ID/notification?auth_token=$TOKEN
+ 
+    curl -sS \
+      -H 'Content-type: multipart/related' \
+      -F "file=@${FILE}" \
+      https://$HOST/v2/room/$ROOM_ID/share/file?auth_token=$TOKEN
+ 
+  else
+    curl -sS \
+      -H 'Content-type: application/json' \
+      -d "{\"color\":\"$COLOR\", \"message\":\"$INPUT\", \"message_format\":\"$FORMAT\", \"notify\":$NOTIFY}" \
+      https://$HOST/v2/room/$ROOM_ID/notification?auth_token=$TOKEN
+  fi
 else
   curl -sS \
     -d "auth_token=$TOKEN&room_id=$ROOM_ID&from=$FROM&color=$COLOR&message_format=$FORMAT&message=$INPUT&notify=$NOTIFY" \
